@@ -1,0 +1,182 @@
+#Run with R and R studio (4.4.0)
+getwd()
+# gives us the wd and we can set it with setwd() OR in RStudio go to Session and set working directory
+# Hit esc to kill a command 
+
+#Some of these programs only run with BioCManager
+# So we have to do this
+if (!require("BiocManager", quietly=TRUE))
+  install.packages("BiocManager")
+BiocManager::install(version="3.19")
+
+install.packages("devtools")
+devtools::install_github("joey711/phyloseq")
+BiocManager::install('phyloseq', force = TRUE)
+
+if (!requireNamespace("devtools", quietly = TRUE)){install.packages("devtools")}
+devtools::install_github("jbisanz/qiime2R")
+
+BiocManager::install("DESeq2")
+BiocManager::install("microbiome")
+BiocManager::install("ALDEx2")
+install.packages("ggplot2")
+
+install.packages("dplyr")
+install.packages("readxl")
+install.packages("magrittr")
+install.packages("ape")
+install.packages("Biostrings")
+install.packages("Hmisc")
+install.packages("biomformat")
+install.packages("yaml")
+install.packages("tidyr")
+install.packages("stats")
+install.packages("ggsignif")
+install.packages("utils")
+install.packages("installr")
+install.packages("writexl")
+
+#All these libraries used here
+library(ALDEx2)
+library(ape)
+library(Biostrings)
+library(dplyr)
+library(eulerr)
+library(ggh4x)
+library(ggpicrust2)
+library(ggplot2)
+library(ggprism)
+library(ggsignif)
+library(gplots)
+library(Hmisc)
+library(knitr)
+library(magrittr)
+library(microbiome)
+library(microbiomeMarker)
+library(microbiomeutilities) 
+library(multcompView)
+library(patchwork)
+library(pgirmess)
+library(phyloseq)
+library(qiime2R)
+library(readr)
+library(readxl)
+library(stats)
+library(tibble)
+library(tidyr)
+library(tidyverse)
+library(utils)
+library(vegan)
+library(writexl)
+library(yaml)
+
+
+#importing qza table
+SVs<-read_qza("table.qza")
+#checking names
+names(SVs)
+#reading metadata, can also use read.table() for this
+meta<-read_q2metadata("FN_Meta.tsv")
+#Read in taxa 
+tax<-read_qza("FN-taxonomy.qza")
+#Read in tree
+tree<-read_qza("unrooted-tree.qza")
+#in order to parse out the taxa ID and not have it as a string you have to do this
+tax<-parse_taxonomy(tax$data)
+#can check with this
+head(tax)
+
+#make a phyloseq object
+phylo<-qza_to_phyloseq(features = "table.qza", tree = "unrooted-tree.qza", "FN-taxonomy.qza", metadata = "FN_Meta.tsv")
+
+#Dealing with microbiome data, summarizing
+summarize_phyloseq(phylo)
+
+#rareified to 10k and top 100 taxa
+phylo_r = rarefy_even_depth(phylo, sample.size = 10000)
+phyloS <-prune_taxa(names(sort(taxa_sums(phylo),TRUE)[1:100]), phylo_r)
+phyloSS <- merge_samples(phyloS, "sample")
+phyloSSS<- transform_sample_counts(phyloSS, function(x) 100*x/sum(x))
+plot_bar(phyloSSS, fill = "Genus")
+p <- (plot_bar(phyloSSS, fill = "Genus"))
+#this gets the text smaller but not the boxes
+q <- p + theme(text = element_text(size = 5))
+q
+#so what you can do is transform this into a dataframe use psmelt
+phg = psmelt(phyloSSS)
+ggplot(phg, aes(x=Sample, y=Abundance, fill=Genus)) +
+  geom_bar(position="fill", stat="identity")
+
+ 
+#Figure 1
+#figure1test4-do labelling before
+ggplot(phg, aes(x=Sample, y=Abundance, fill=Phylum)) +
+  geom_bar(position="fill", stat="identity") +
+  facet_wrap(~Ethnicity, nrow=1, labeller= as_labeller(ethlab), scales = "free_x") +
+  theme(axis.text.x = element_text(angle = 90, size = 7, vjust = 0.5, hjust = 1))
+#going the long way around with this 
+ethlab <- c(
+            '1'="Asian",
+            '2'="Black",
+            '3'="Caucasian",
+            '4'="Hispanic",
+            '5'="Multi"
+                    )
+
+#figure 2 
+#FigureA2
+xm3 <- ggplot(pee, aes(x=Sample, y=Abundance, fill=Genus)) +
+  geom_bar(position="fill", stat="identity") + 
+  guides(shape = guide_legend(override.aes = list(size = 0.3))) +
+  guides(color = guide_legend(override.aes = list(size = 0.3))) + 
+  theme(legend.key.size = unit(3, 'mm')) +
+  theme(legend.title = element_text(size = 7)) +
+  theme(legend.text = element_text(size = 5)) + 
+  theme(axis.title = element_text(size = 7)) +
+  theme(axis.text.x = element_text(angle = 90, size = 7, vjust = 0.5, hjust = 1)) +
+  theme(axis.text.y = element_text(size = 7)) +
+  theme(axis.text = element_text(face="bold")) +
+  labs(x = "Ethnicity")
+xm3
+
+#figure 3
+plot_richness(phylo, measures=c("Observed"), x="site") +
+  geom_boxplot(alpha=0.1) +
+  geom_signif(comparisons = list(c("LR", "T"), c("T", "UL"), c("UL", "UR"),
+                                 c("LL", "T"), c("LR", "UL"), c("LL", "UL"), 
+                                 c("LL", "UR")), 
+              step_increase = 0.1,
+              map_signif_level=TRUE)
+              
+plot_richness(phylo, measures=c("Observed"), x="site") +
+  geom_boxplot(alpha=0.1)
+
+#Figure4
+plot_richness(phylo, measures=c("Observed"), x="Sex") +
+  geom_boxplot(alpha=0.1) + 
+  geom_jitter(width = 0.2) +
+  geom_signif(comparisons = list(c("M", "F")), annotations="*",
+              map_signif_level=TRUE)
+#Figure5
+
+pc_title = "Bray Curtis PCoA"
+phylo_r_pc = ordinate(phylo_r, "PCoA", "bray")
+p = plot_ordination(phylo_r, phylo_r_pc, color = "site", shape = "Ethnicity")
+p = p + geom_point(size = 5, alpha = 0.7) + ggtitle(pc_title)
+p
+
+#figure 6
+phylo_g<-subset_samples(phylo, Gingivitis. %in% c("Healthy", "Generalized"))
+phylo_g
+#Figure6
+lef_1<-run_lefse(phylo_g, group = "Gingivitis.", taxa_rank = "Genus", norm = "CPM", kw_cutoff = 0.05, lda_cutoff = 2)
+plot_ef_bar(lef_1)
+#Figure6
+phylo_g2<-subset_samples(phylo, Gingivitis. %in% c("Localized", "Healthy"))
+lef_12<-run_lefse(phylo_g2, group = "Gingivitis.", taxa_rank = "Genus", norm = "CPM", kw_cutoff = 0.05, lda_cutoff = 2)
+plot_ef_bar(lef_12)
+#Figure6
+phylo_g3<-subset_samples(phylo, Gingivitis. %in% c("Localized", "Generalized"))
+lef_13<-run_lefse(phylo_g3, group = "Gingivitis.", taxa_rank = "Genus", norm = "CPM", kw_cutoff = 0.05, lda_cutoff = 2)
+plot_ef_bar(lef_13)
+
